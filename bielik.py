@@ -89,9 +89,24 @@ def generate_text(prompt, temperature=0.7):
     model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
     text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
     generated_text = text_generator(prompt, max_length=2096, temperature=temperature, num_return_sequences=1, do_sample=True, pad_token_id=tokenizer.eos_token_id)[0]['generated_text']
+
+    # Formatowanie wygenerowanego tekstu
+    formatted_text = ""
+    for line in generated_text.split("\n"):
+        if line.strip():  # Pominięcie pustych linii
+            sentences = line.split(". ")
+            for i, sentence in enumerate(sentences):
+                if i > 0:
+                    formatted_text += "\n"  # Nowa linia po każdym zdaniu
+                formatted_text += sentence.strip() + ".\n"
+            formatted_text += "\n"  # Dwie nowe linie po każdym akapicie
+
+    # Wyświetlanie sformatowanego tekstu w estetycznym formularzu okna/boxu
+    box = Box(Text(formatted_text, style="bold green", justify="left"), box=box.ROUNDED)
+    console.print(Panel(box, title="Wygenerowany tekst", expand=False))
+
     del model  # Uwalnianie pamięci
     torch.cuda.empty_cache()
-    return generated_text
 
 # Funkcja ładowania i przygotowania zestawu danych
 def load_and_prepare_dataset(tokenizer):
