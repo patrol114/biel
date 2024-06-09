@@ -17,8 +17,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Etap 2: Załadowanie tokenizera i konfiguracji modelu
 model_name = "speakleash/Bielik-7B-v0.1"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-config = AutoConfig.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name, force_download=True)
+config = AutoConfig.from_pretrained(model_name, force_download=True)
 
 # Konfiguracja DeepSpeed z uwzględnieniem ograniczenia pamięci RAM
 deepspeed_config = {
@@ -59,7 +59,7 @@ def menu():
 # Funkcja generowania tekstu
 def generate_text(prompt, temperature=0.7):
     torch.cuda.empty_cache()
-    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16).to(device)
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
     text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
     generated_text = text_generator(prompt, max_length=4096, temperature=temperature, num_return_sequences=1, do_sample=True)[0]['generated_text']
     del model  # Uwalnianie pamięci
@@ -69,9 +69,21 @@ def generate_text(prompt, temperature=0.7):
 # Funkcja ładowania i przygotowania zestawu danych
 def load_and_prepare_dataset(tokenizer):
     dataset = load_dataset("allegro/polish-question-passage-pairs", cache_format='arrow')
+    
     def tokenize_function(examples):
-        return tokenizer(examples['question'], padding="max_length", truncation=True)
+        # Dodano obsługę wyjątków
+        try:
+            return tokenizer(examples['question'], padding="max_length", truncation=True)
+        except Exception as e:
+            print(f"Błąd podczas tokenizacji: {e}")
+            return None
+    
+    # Tokenizacja datasetu z obsługą błędów
     tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=['id', 'question', 'passage'], num_proc=4)
+    
+    # Usunięcie None wartości, jeśli występują błędy w tokenizacji
+    tokenized_dataset = tokenized_dataset.filter(lambda x: x is not None)
+
     return DatasetDict({
         "train": tokenized_dataset["train"],
         "eval": tokenized_dataset["validation"]
@@ -79,7 +91,7 @@ def load_and_prepare_dataset(tokenizer):
 
 # Funkcja treningu modelu
 def train_model(dataset):
-    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16).to(device)
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
     model.gradient_checkpointing_enable()
     model.is_parallelizable = True
     model.model_parallel = True
@@ -143,7 +155,7 @@ def train_model(dataset):
 # Dodatkowa funkcja ewaluacji modelu, która może być wywołana w ramach treningu lub osobno
 def evaluate_model(model_name, tokenizer):
     torch.cuda.empty_cache()
-    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16).to(device)
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
     tasks = ["sentiment-analysis", "text-classification", "question-answering"]
     results = {}
     for task in tasks:
@@ -223,3 +235,7 @@ def hyperparameter_tuning():
                 print(f"--- Uruchamianie: {run_name}")
                 run('logs/hparam_tuning/' + run_name, hparams)
                 session_num += 1
+
+# Uruchomienie menu, aby wybrać operację
+if __name__ == "__main__":
+    menu()
