@@ -14,7 +14,7 @@ import os
 
 # Set environment variables to avoid parallelism warning and manage CUDA memory allocation
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32'
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:64'  # Adjust this value to manage memory fragmentation
 
 # Check if GPU is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -103,8 +103,8 @@ training_args = TrainingArguments(
     output_dir="./results",
     overwrite_output_dir=True,
     num_train_epochs=5,  # Number of training epochs
-    per_device_train_batch_size=4,  # Train batch size
-    per_device_eval_batch_size=4,  # Eval batch size
+    per_device_train_batch_size=2,  # Reduce train batch size to save memory
+    per_device_eval_batch_size=2,  # Reduce eval batch size to save memory
     save_steps=2000,
     save_total_limit=3,
     evaluation_strategy="steps",
@@ -122,7 +122,7 @@ training_args = TrainingArguments(
     run_name="bielik-training",  # Run name for tracking
     logging_dir="./logs",  # Directory for storing logs
     save_strategy="epoch",  # Save model at the end of each epoch
-    gradient_accumulation_steps=1,  # Micro batch size = 4, and effective batch size = gradient_accumulation_steps * per_device_train_batch_size
+    gradient_accumulation_steps=2,  # Increase gradient accumulation steps to reduce memory usage
     lr_scheduler_type='cosine',  # Cosine learning rate schedule
     warmup_steps=2000,  # Warmup iterations
     max_steps=17350,  # Total training iterations
