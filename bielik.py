@@ -115,7 +115,7 @@ def load_and_prepare_dataset(tokenizer):
     def tokenize_function(examples):
         # Dodano obsługę wyjątków
         try:
-            return tokenizer(examples['question'], padding="max_length", truncation=True)
+            return tokenizer(examples['question'], padding="max_length", truncation=True)  # Dodano truncation=True
         except Exception as e:
             console.print(f"Błąd podczas tokenizacji: {e}", style="bold red")
             return None
@@ -130,7 +130,7 @@ def load_and_prepare_dataset(tokenizer):
         "train": tokenized_dataset["train"],
         "eval": tokenized_dataset["validation"]
     })
-
+    
 # Funkcja treningu modelu
 def train_model(dataset):
     model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
