@@ -36,6 +36,9 @@ model = AutoModelForCausalLM.from_pretrained(
 # Enable gradient checkpointing to save memory
 model.gradient_checkpointing_enable()
 
+# Clear GPU cache before large operations
+torch.cuda.empty_cache()
+
 # Initialize the text generation pipeline
 text_generator = pipeline(
     "text-generation", 
@@ -46,6 +49,7 @@ text_generator = pipeline(
 
 # Function to generate text with added temperature
 def generate_text(prompt, temperature=1.0):
+    torch.cuda.empty_cache()  # Clear GPU cache before generating text
     sequences = text_generator(
         text_inputs=prompt,
         max_new_tokens=100,
@@ -123,7 +127,7 @@ training_args = TrainingArguments(
     run_name="bielik-training",  # Run name for tracking
     logging_dir="./logs",  # Directory for storing logs
     save_strategy="epoch",  # Save model at the end of each epoch
-    gradient_accumulation_steps=8,  # Increase gradient accumulation steps to reduce memory usage
+    gradient_accumulation_steps=16,  # Increase gradient accumulation steps to reduce memory usage
     lr_scheduler_type='cosine',  # Cosine learning rate schedule
     warmup_steps=2000,  # Warmup iterations
     max_steps=17350,  # Total training iterations
@@ -144,11 +148,17 @@ trainer = Trainer(
     callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]  # Early stopping
 )
 
+# Clear GPU cache before training
+torch.cuda.empty_cache()
+
 # Start training
 try:
     trainer.train()
 except Exception as e:
     print(f"Training failed with error: {e}")
+
+# Clear GPU cache before evaluation
+torch.cuda.empty_cache()
 
 # Function to evaluate the model with additional metrics
 def evaluate_model(model, tokenizer):
@@ -156,6 +166,7 @@ def evaluate_model(model, tokenizer):
     results = {}
 
     for task in tasks:
+        torch.cuda.empty_cache()  # Clear GPU cache before each task
         evaluator = pipeline(task, model=model, tokenizer=tokenizer)
         # Example inputs for each task
         inputs = {
