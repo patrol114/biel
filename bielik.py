@@ -8,6 +8,8 @@ from tensorboard.plugins.hparams import api as hp
 from datetime import datetime
 from rich.console import Console
 from rich.table import Table
+from rich.progress import track
+from rich import box
 
 console = Console()
 
@@ -48,12 +50,14 @@ deepspeed_config = {
 
 # Funkcja menu
 def menu():
-    table = Table(title="Opcje Menu")
+    table = Table(title="Opcje Menu", box=box.ROUNDED)
     table.add_column("Numer", justify="right", style="cyan", no_wrap=True)
     table.add_column("Opis", style="magenta")
     table.add_row("1", "Generowanie tekstu")
     table.add_row("2", "Trening modelu")
     table.add_row("3", "Strojenie hiperparametrów")
+    table.add_row("4", "Ewaluacja modelu")
+    table.add_row("5", "Logowanie danych tekstowych")
     console.print(table)
     
     choice = input("Wybierz opcję: ")
@@ -65,6 +69,11 @@ def menu():
         train_model(dataset)
     elif choice == '3':
         hyperparameter_tuning()
+    elif choice == '4':
+        results = evaluate_model(model_name, tokenizer)
+        console.print(results, style="bold blue")
+    elif choice == '5':
+        log_text_data()
     else:
         console.print("Niepoprawny wybór, spróbuj ponownie.", style="bold red")
 
@@ -171,6 +180,7 @@ def evaluate_model(model_name, tokenizer):
     tasks = ["sentiment-analysis", "text-classification", "question-answering"]
     results = {}
     for task in tasks:
+        console.print(f"Rozpoczynam ewaluację dla zadania: {task}", style="bold blue")
         evaluator = pipeline(task, model=model, tokenizer=tokenizer, device=0)
         inputs = {
             "sentiment-analysis": "To był wspaniały dzień!",
@@ -185,6 +195,7 @@ def evaluate_model(model_name, tokenizer):
         else:
             result = evaluator(inputs[task])
         results[task] = result
+        console.print(f"Wynik dla {task}: {result}", style="bold green")
     del model  # Uwalnianie pamięci
     torch.cuda.empty_cache()
     return results
