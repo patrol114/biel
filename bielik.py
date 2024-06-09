@@ -6,6 +6,10 @@ import deepspeed
 import tensorflow as tf
 from tensorboard.plugins.hparams import api as hp
 from datetime import datetime
+from rich.console import Console
+from rich.table import Table
+
+console = Console()
 
 # Ustawienia środowiskowe
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -44,24 +48,32 @@ deepspeed_config = {
 
 # Funkcja menu
 def menu():
-    choice = input("Wybierz opcję: 1. Generowanie tekstu, 2. Trening modelu, 3. Strojenie hiperparametrów: ")
+    table = Table(title="Opcje Menu")
+    table.add_column("Numer", justify="right", style="cyan", no_wrap=True)
+    table.add_column("Opis", style="magenta")
+    table.add_row("1", "Generowanie tekstu")
+    table.add_row("2", "Trening modelu")
+    table.add_row("3", "Strojenie hiperparametrów")
+    console.print(table)
+    
+    choice = input("Wybierz opcję: ")
     if choice == '1':
         text = input("Podaj tekst wejściowy: ")
-        print(generate_text(text, temperature=0.7))
+        console.print(generate_text(text, temperature=0.7), style="bold green")
     elif choice == '2':
         dataset = load_and_prepare_dataset(tokenizer)
         train_model(dataset)
     elif choice == '3':
         hyperparameter_tuning()
     else:
-        print("Niepoprawny wybór, spróbuj ponownie.")
+        console.print("Niepoprawny wybór, spróbuj ponownie.", style="bold red")
 
 # Funkcja generowania tekstu
 def generate_text(prompt, temperature=0.7):
     torch.cuda.empty_cache()
     model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
     text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
-    generated_text = text_generator(prompt, max_length=4096, temperature=temperature, num_return_sequences=1, do_sample=True)[0]['generated_text']
+    generated_text = text_generator(prompt, max_length=2096, temperature=temperature, num_return_sequences=1, do_sample=True)[0]['generated_text']
     del model  # Uwalnianie pamięci
     torch.cuda.empty_cache()
     return generated_text
@@ -75,7 +87,7 @@ def load_and_prepare_dataset(tokenizer):
         try:
             return tokenizer(examples['question'], padding="max_length", truncation=True)
         except Exception as e:
-            print(f"Błąd podczas tokenizacji: {e}")
+            console.print(f"Błąd podczas tokenizacji: {e}", style="bold red")
             return None
     
     # Tokenizacja datasetu z obsługą błędów
@@ -144,11 +156,11 @@ def train_model(dataset):
     )
     
     try:
-        print("Rozpoczynam trening modelu...")
+        console.print("Rozpoczynam trening modelu...", style="bold blue")
         trainer.train()
-        print("Trening zakończony sukcesem.")
+        console.print("Trening zakończony sukcesem.", style="bold green")
     except Exception as e:
-        print(f"Trening nie powiódł się z błędem: {e}")
+        console.print(f"Trening nie powiódł się z błędem: {e}", style="bold red")
     del model  # Uwalnianie pamięci
     torch.cuda.empty_cache()
 
@@ -184,7 +196,7 @@ def log_text_data():
     with file_writer.as_default():
         tf.summary.text("Sample text", "This is a sample log of text data", step=0)
     # Zamiast magicznego polecenia, instrukcja jak uruchomić tensorboard z terminala
-    print(f"Aby uruchomić TensorBoard, wykonaj polecenie: tensorboard --logdir {logdir}")
+    console.print(f"Aby uruchomić TensorBoard, wykonaj polecenie: tensorboard --logdir {logdir}", style="bold blue")
 
 # Funkcja treningu modelu z hiperparametrami
 def train_test_model(hparams):
@@ -232,7 +244,7 @@ def hyperparameter_tuning():
                     HP_OPTIMIZER: optimizer
                 }
                 run_name = f"run-{session_num}"
-                print(f"--- Uruchamianie: {run_name}")
+                console.print(f"--- Uruchamianie: {run_name}", style="bold blue")
                 run('logs/hparam_tuning/' + run_name, hparams)
                 session_num += 1
 
