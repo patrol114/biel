@@ -16,8 +16,8 @@ console = Console()
 
 # Ustawienia środowiskowe
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32'
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
+#os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 # Sprawdzenie dostępności GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
