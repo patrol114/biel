@@ -26,8 +26,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Etap 2: Załadowanie tokenizera i konfiguracji modelu
 model_name = "speakleash/Bielik-7B-v0.1"
-tokenizer = AutoTokenizer.from_pretrained(model_name, force_download=True)
-config = AutoConfig.from_pretrained(model_name, force_download=True)
+tokenizer = AutoTokenizer.from_pretrained(model_name, force_download=False)
+config = AutoConfig.from_pretrained(model_name, force_download=False)
 
 # Konfiguracja DeepSpeed z uwzględnieniem ograniczenia pamięci RAM
 deepspeed_config = {
@@ -88,7 +88,7 @@ def menu():
 # Funkcja generowania tekstu
 def generate_text(prompt, temperature=0.7):
     torch.cuda.empty_cache()
-    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=False).to(device)
     text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
     generated_text = text_generator(prompt, max_length=512, temperature=temperature, num_return_sequences=1, do_sample=True, pad_token_id=tokenizer.eos_token_id)[0]['generated_text']
 
@@ -134,7 +134,7 @@ def load_and_prepare_dataset(tokenizer):
     
 # Funkcja treningu modelu
 def train_model(dataset):
-    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=False).to(device)
     model.gradient_checkpointing_enable()
     model.is_parallelizable = True
     model.model_parallel = True
@@ -198,7 +198,7 @@ def train_model(dataset):
 # Dodatkowa funkcja ewaluacji modelu, która może być wywołana w ramach treningu lub osobno
 def evaluate_model(model_name, tokenizer):
     torch.cuda.empty_cache()
-    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=False).to(device)
     tasks = ["sentiment-analysis", "text-classification", "question-answering"]
     results = {}
     for task in tasks:
