@@ -1,4 +1,3 @@
-# Etap 1: Importowanie bibliotek i ustawienia środowiska
 from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, EarlyStoppingCallback, AutoConfig
 import torch
 from datasets import load_dataset, DatasetDict
