@@ -86,7 +86,7 @@ def menu():
 # Funkcja generowania tekstu
 def generate_text(prompt, temperature=0.7):
     torch.cuda.empty_cache()
-    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=False).to(device)
     text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
     generated_text = text_generator(prompt, max_length=2096, temperature=temperature, num_return_sequences=1, do_sample=True)[0]['generated_text']
     del model  # Uwalnianie pamięci
