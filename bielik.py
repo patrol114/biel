@@ -70,7 +70,7 @@ def train_model(dataset):
         fp16=True,
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
-        greater_is_b, False
+        greater_is_b=False,
         report_to="none",
         dataloader_num_workers=2,
         run_name="bielik-training",
