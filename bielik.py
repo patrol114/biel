@@ -90,7 +90,7 @@ def generate_text(prompt, temperature=0.7):
     torch.cuda.empty_cache()
     model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
     text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
-    generated_text = text_generator(prompt, max_length=1024, temperature=temperature, num_return_sequences=1, do_sample=True, pad_token_id=tokenizer.eos_token_id)[0]['generated_text']
+    generated_text = text_generator(prompt, max_length=512, temperature=temperature, num_return_sequences=1, do_sample=True, pad_token_id=tokenizer.eos_token_id)[0]['generated_text']
 
     # Formatowanie wygenerowanego tekstu
     formatted_text = ""
@@ -99,7 +99,7 @@ def generate_text(prompt, temperature=0.7):
             sentences = line.split(". ")
             for i, sentence in enumerate(sentences):
                 if i > 0:
-                    formatted_text += "\n"  # Nowa linia po każdym zdaniu
+                    formatted_text += ""  # Nowa linia po każdym zdaniu
                 formatted_text += sentence.strip() + ".\n"
             formatted_text += "\n"  # Dwie nowe linie po każdym akapicie
 
@@ -116,7 +116,7 @@ def load_and_prepare_dataset(tokenizer):
     def tokenize_function(examples):
         # Dodano obsługę wyjątków
         try:
-            return tokenizer(examples['question'], padding="max_length", truncation=True, max_length=1024)  # Dodano truncation=True i max_length
+            return tokenizer(examples['question'], padding="max_length", truncation=True, max_length=512)  # Dodano truncation=True i max_length
         except Exception as e:
             console.print(f"Błąd podczas tokenizacji: {e}", style="bold red")
             return None
