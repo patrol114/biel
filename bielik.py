@@ -147,7 +147,7 @@ def evaluate_model(model_name, tokenizer):
     tasks = ["sentiment-analysis", "text-classification", "question-answering"]
     results = {}
     for task in tasks:
-        evaluator = pipeline(task, model=model, tokenizer=tokenizer, device=device)
+        evaluator = pipeline(task, model=model, tokenizer=tokenizer, device=0)
         inputs = {
             "sentiment-analysis": "To był wspaniały dzień!",
             "text-classification": "Przykład tekstu do klasyfikacji.",
@@ -171,7 +171,8 @@ def log_text_data():
     file_writer = tf.summary.create_file_writer(logdir)
     with file_writer.as_default():
         tf.summary.text("Sample text", "This is a sample log of text data", step=0)
-    %tensorboard --logdir logs
+    # Zamiast magicznego polecenia, instrukcja jak uruchomić tensorboard z terminala
+    print(f"Aby uruchomić TensorBoard, wykonaj polecenie: tensorboard --logdir {logdir}")
 
 # Funkcja treningu modelu z hiperparametrami
 def train_test_model(hparams):
