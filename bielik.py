@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, EarlyStoppingCallback
+from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, EarlyStoppingCallback, AutoConfig
 import torch
 from datasets import load_dataset, Dataset, DatasetDict
 import pandas as pd
@@ -10,7 +10,8 @@ model_name = "speakleash/Bielik-7B-v0.1"
 
 # Załaduj tokenizer i model z mniejszą precyzją
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, low_cpu_mem_usage=True)
+config = AutoConfig.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, low_cpu_mem_usage=True)
 
 # Użycie gradient checkpointing do oszczędzania pamięci
 model.gradient_checkpointing_enable()
