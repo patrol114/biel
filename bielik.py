@@ -24,8 +24,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Etap 2: Załadowanie tokenizera i konfiguracji modelu
 model_name = "speakleash/Bielik-7B-v0.1"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-config = AutoConfig.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name, force_download=True)
+config = AutoConfig.from_pretrained(model_name, force_download=True)
 
 # Konfiguracja DeepSpeed z uwzględnieniem ograniczenia pamięci RAM
 deepspeed_config = {
