@@ -4,6 +4,10 @@ from datasets import load_dataset, Dataset, DatasetDict
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
+import os
+
+# Set environment variable to avoid parallelism warning
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Check if GPU is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -22,14 +26,15 @@ model.gradient_checkpointing_enable()
 # Inicjalizacja pipeline do generowania tekstu
 text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
 
-# Funkcja generowania tekstu
-def generate_text(prompt):
+# Funkcja generowania tekstu z dodaną temperaturą
+def generate_text(prompt, temperature=1.0):
     sequences = text_generator(
         text_inputs=prompt,
         max_new_tokens=100,
         do_sample=True,
         top_k=50,
-        eos_token_id=tokenizer.eos_token_id
+        eos_token_id=tokenizer.eos_token_id,
+        temperature=temperature
     )
     for seq in sequences:
         print(f"Result: {seq['generated_text']}")
@@ -38,7 +43,7 @@ def generate_text(prompt):
 text = input("Podaj tekst wejściowy: ")
 
 # Generowanie tekstu
-generate_text(text)
+generate_text(text, temperature=0.7)  # Example with temperature set to 0.7
 
 # Funkcja do tworzenia datasetu z listy par pytań i odpowiedzi
 def create_dataset(pairs):
