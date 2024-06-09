@@ -1,15 +1,9 @@
-# Importujemy niezbędne moduły
-from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, HfApi, HfFolder, EarlyStoppingCallback
+from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, EarlyStoppingCallback
 import torch
 from datasets import load_dataset, Dataset, DatasetDict
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
-
-# Logowanie do Hugging Face za pomocą tokena API
-api_token = "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"
-HfApi().set_access_token(api_token)
-HfFolder.save_token(api_token)
 
 # Nazwa modelu
 model_name = "speakleash/Bielik-7B-v0.1"
