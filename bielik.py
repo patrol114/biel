@@ -10,6 +10,9 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import track
 from rich import box
+from rich.panel import Panel
+from rich.text import Text
+from rich.layout import Box
 import subprocess
 
 console = Console()
@@ -115,7 +118,7 @@ def load_and_prepare_dataset(tokenizer):
     def tokenize_function(examples):
         # Dodano obsługę wyjątków
         try:
-            return tokenizer(examples['question'], padding="max_length", truncation=True)  # Dodano truncation=True
+            return tokenizer(examples['question'], padding="max_length", truncation=True, max_length=1024)  # Dodano truncation=True
         except Exception as e:
             console.print(f"Błąd podczas tokenizacji: {e}", style="bold red")
             return None
