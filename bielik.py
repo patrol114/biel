@@ -5,19 +5,22 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
 
+# Check if GPU is available
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # Nazwa modelu
 model_name = "speakleash/Bielik-7B-v0.1"
 
 # Załaduj tokenizer i model z mniejszą precyzją
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 config = AutoConfig.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, low_cpu_mem_usage=True)
+model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, low_cpu_mem_usage=True).to(device)
 
 # Użycie gradient checkpointing do oszczędzania pamięci
 model.gradient_checkpointing_enable()
 
 # Inicjalizacja pipeline do generowania tekstu
-text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer)
+text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
 
 # Funkcja generowania tekstu
 def generate_text(prompt):
@@ -78,7 +81,7 @@ training_args = TrainingArguments(
     logging_steps=500,
     learning_rate=3e-5,  # Dostosowano learning rate
     weight_decay=0.01,
-    fp16=True,
+    fp16=True,  # Pozostawienie fp16
     load_best_model_at_end=True,
     metric_for_best_model="eval_loss",  # Metryka używana do wyboru najlepszego modelu
     greater_is_better=False,  # Wartość mniejsza jest lepsza dla straty
