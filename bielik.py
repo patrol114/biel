@@ -13,15 +13,10 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 # Sprawdzenie dostępności GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Etap 2: Załadowanie modelu i tokenizera
+# Etap 2: Załadowanie tokenizera i konfiguracji modelu
 model_name = "speakleash/Bielik-7B-v0.1"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 config = AutoConfig.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16).to(device)
-model.gradient_checkpointing_enable()
-model.is_parallelizable = True
-model.model_parallel = True
-model.tie_weights = False
 
 # Konfiguracja DeepSpeed z uwzględnieniem ograniczenia pamięci RAM
 deepspeed_config = {
@@ -60,8 +55,12 @@ def menu():
 # Funkcja generowania tekstu
 def generate_text(prompt, temperature=1.0):
     torch.cuda.empty_cache()
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16).to(device)
     text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
-    return text_generator(prompt, max_length=100, temperature=temperature, num_return_sequences=1)[0]['generated_text']
+    generated_text = text_generator(prompt, max_length=100, temperature=temperature, num_return_sequences=1)[0]['generated_text']
+    del model  # Uwalnianie pamięci
+    torch.cuda.empty_cache()
+    return generated_text
 
 # Funkcja ładowania i przygotowania zestawu danych
 def load_and_prepare_dataset(tokenizer):
@@ -76,6 +75,12 @@ def load_and_prepare_dataset(tokenizer):
 
 # Funkcja treningu modelu
 def train_model(dataset):
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16).to(device)
+    model.gradient_checkpointing_enable()
+    model.is_parallelizable = True
+    model.model_parallel = True
+    model.tie_weights = False
+    
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
     training_args = TrainingArguments(
         output_dir="./results",
@@ -125,6 +130,8 @@ def train_model(dataset):
         print("Trening zakończony sukcesem.")
     except Exception as e:
         print(f"Trening nie powiódł się z błędem: {e}")
+    del model  # Uwalnianie pamięci
+    torch.cuda.empty_cache()
 
 # Główna funkcja sterująca
 if __name__ == "__main__":
@@ -136,8 +143,9 @@ if __name__ == "__main__":
             break
 
 # Dodatkowa funkcja ewaluacji modelu, która może być wywołana w ramach treningu lub osobno
-def evaluate_model(model, tokenizer):
+def evaluate_model(model_name, tokenizer):
     torch.cuda.empty_cache()
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16).to(device)
     tasks = ["sentiment-analysis", "text-classification", "question-answering"]
     results = {}
     for task in tasks:
@@ -155,4 +163,6 @@ def evaluate_model(model, tokenizer):
         else:
             result = evaluator(inputs[task])
         results[task] = result
+    del model  # Uwalnianie pamięci
+    torch.cuda.empty_cache()
     return results
