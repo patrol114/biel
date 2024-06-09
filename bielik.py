@@ -11,11 +11,12 @@ from transformers import (
 import torch
 from datasets import Dataset, DatasetDict
 import os
+import deepspeed
 
 # Set environment variables to avoid parallelism warning and manage CUDA memory allocation
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32'  # Further reduce to manage fragmentation
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"  # Disable async CUDA operations
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32'
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 # Check if GPU is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,12 +30,40 @@ config = AutoConfig.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(
     model_name, 
     config=config, 
-    torch_dtype=torch.bfloat16, 
+    torch_dtype=torch.float16, 
     low_cpu_mem_usage=True
 ).to(device)
 
 # Enable gradient checkpointing to save memory
 model.gradient_checkpointing_enable()
+
+# Enable model parallelism and state dict offloading
+model.is_parallelizable = True
+model.model_parallel = True
+model.tie_weights = False  # Prevent weight tying to save memory
+
+# Initialize DeepSpeed
+deepspeed_config = {
+    "train_micro_batch_size_per_gpu": 1,
+    "gradient_accumulation_steps": 16,
+    "gradient_clipping": 1.0,
+    "fp16": {"enabled": True},
+    "zero_optimization": {
+        "stage": 2,
+        "allgather_partitions": True,
+        "allgather_bucket_size": 5e8,
+        "overlap_comm": True,
+        "reduce_scatter": True,
+        "reduce_bucket_size": 5e8,
+        "contiguous_gradients": True,
+    },
+    "zero_allow_untested_optimizer": True,
+    "activation_checkpointing": {
+        "partition_activations": True,
+        "contiguous_memory_optimization": True,
+        "cpu_checkpointing": True
+    },
+}
 
 # Clear GPU cache before large operations
 torch.cuda.empty_cache()
@@ -117,8 +146,8 @@ training_args = TrainingArguments(
     logging_steps=500,
     learning_rate=3e-5,  # Learning rate (cosine annealing will be applied manually)
     weight_decay=0.1,  # Weight decay
-    fp16=False,  # Use 16-bit floating point precision
-    bf16=True,  # Use bfloat16 precision
+    bf16=False,  # Use float16 precision
+    fp16=True,  # Enable mixed precision training
     load_best_model_at_end=True,
     metric_for_best_model="eval_loss",  # Metric for selecting best model
     greater_is_better=False,  # Lower loss is better
