@@ -1,41 +1,49 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, EarlyStoppingCallback, AutoConfig
 import torch
-from datasets import Dataset, DatasetDict
+from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, HfApi, HfFolder, EarlyStoppingCallback
+from datasets import load_dataset, Dataset, DatasetDict
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
-import os
 
-# Set environment variable to avoid parallelism warning
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32'
-
-# Check if GPU is available
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Logowanie do Hugging Face za pomocą tokena API
+api_token = "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"
+HfApi().set_access_token(api_token)
+HfFolder.save_token(api_token)
 
 # Nazwa modelu
 model_name = "speakleash/Bielik-7B-v0.1"
 
-# Załaduj tokenizer i model z mniejszą precyzją
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-config = AutoConfig.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, low_cpu_mem_usage=True).to(device)
+# Sprawdzenie dostępności GPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Użycie gradient checkpointing do oszczędzania pamięci
-model.gradient_checkpointing_enable()
+# Załaduj tokenizer i model
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+try:
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        torch_dtype=torch.float16 if device.type == "cuda" else torch.float32,
+        low_cpu_mem_usage=True
+    ).to(device)
+except torch.cuda.OutOfMemoryError:
+    print("CUDA out of memory. Switching to bfloat16.")
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        torch_dtype=torch.bfloat16 if device.type == "cuda" else torch.float32,
+        low_cpu_mem_usage=True
+    ).to(device)
 
 # Inicjalizacja pipeline do generowania tekstu
-text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
+text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer)
 
-# Funkcja generowania tekstu z dodaną temperaturą
-def generate_text(prompt, temperature=1.0):
+# Funkcja generowania tekstu
+def generate_text(prompt):
     sequences = text_generator(
-        text_inputs=prompt,
+        prompt,
         max_new_tokens=100,
         do_sample=True,
         top_k=50,
-        eos_token_id=tokenizer.eos_token_id,
-        temperature=temperature
+        eos_token_id=tokenizer.eos_token_id
     )
     for seq in sequences:
         print(f"Result: {seq['generated_text']}")
@@ -44,25 +52,15 @@ def generate_text(prompt, temperature=1.0):
 text = input("Podaj tekst wejściowy: ")
 
 # Generowanie tekstu
-generate_text(text, temperature=0.7)  # Example with temperature set to 0.7
+generate_text(text)
 
 # Funkcja do tworzenia datasetu z listy par pytań i odpowiedzi
-def create_dataset(pairs, tokenizer):
+def create_dataset(pairs):
     df = pd.DataFrame(pairs)
     train_df, eval_df = train_test_split(df, test_size=0.2)
-    
-    def tokenize_function(examples):
-        return tokenizer(examples['text'], padding="max_length", truncation=True)
-    
-    train_dataset = Dataset.from_pandas(train_df).map(tokenize_function, batched=True)
-    eval_dataset = Dataset.from_pandas(eval_df).map(tokenize_function, batched=True)
-    
-    train_dataset = train_dataset.remove_columns(['text'])
-    eval_dataset = eval_dataset.remove_columns(['text'])
-    
     dataset = DatasetDict({
-        "train": train_dataset,
-        "eval": eval_dataset
+        "train": Dataset.from_pandas(train_df),
+        "eval": Dataset.from_pandas(eval_df)
     })
     return dataset
 
@@ -75,7 +73,7 @@ pairs = [
 ]
 
 # Tworzenie datasetu
-dataset = create_dataset(pairs, tokenizer)
+dataset = create_dataset(pairs)
 
 # Przygotowanie danych do trenowania
 data_collator = DataCollatorForLanguageModeling(
@@ -87,22 +85,21 @@ data_collator = DataCollatorForLanguageModeling(
 training_args = TrainingArguments(
     output_dir="./results",
     overwrite_output_dir=True,
-    num_train_epochs=5,  # Zwiększono liczbę epok treningowych
-    per_device_train_batch_size=1,  # Zmniejszono rozmiar batcha
-    per_device_eval_batch_size=1,  # Zmniejszono rozmiar batcha dla ewaluacji
+    num_train_epochs=5,
+    per_device_train_batch_size=2,  # Dostosowano rozmiar batcha dla oszczędności pamięci
+    per_device_eval_batch_size=2,
     save_steps=2000,
     save_total_limit=3,
     evaluation_strategy="steps",
     eval_steps=2000,
     logging_steps=500,
-    learning_rate=3e-5,  # Dostosowano learning rate
+    learning_rate=3e-5,
     weight_decay=0.01,
-    fp16=True,  # Pozostawienie fp16
+    fp16=True if device.type == "cuda" else False,
     load_best_model_at_end=True,
-    metric_for_best_model="eval_loss",  # Metryka używana do wyboru najlepszego modelu
-    greater_is_better=False,  # Wartość mniejsza jest lepsza dla straty
-    report_to="none",  # Wyłączenie raportowania do WANDB
-    dataloader_num_workers=2,  # Zwiększono liczbę wątków do ładowania danych
+    metric_for_best_model="eval_loss",
+    greater_is_better=False,
+    report_to="none"
 )
 
 # Inicjalizacja trenera
@@ -112,7 +109,7 @@ trainer = Trainer(
     data_collator=data_collator,
     train_dataset=dataset["train"],
     eval_dataset=dataset["eval"],
-    callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]  # Dodano wczesne zatrzymanie
+    callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
 )
 
 # Rozpoczęcie treningu
@@ -125,7 +122,6 @@ def evaluate_model(model, tokenizer):
 
     for task in tasks:
         evaluator = pipeline(task, model=model, tokenizer=tokenizer)
-        # Przykładowe dane wejściowe dla każdego zadania
         inputs = {
             "sentiment-analysis": "To był wspaniały dzień!",
             "text-classification": "Przykład tekstu do klasyfikacji.",
@@ -134,15 +130,14 @@ def evaluate_model(model, tokenizer):
                 "question": "Gdzie rozgrywa się akcja książki?"
             }
         }
-        
-        # Wykonanie oceny dla każdego zadania
+
         if task == "question-answering":
             result = evaluator(question=inputs[task]["question"], context=inputs[task]["context"])
         else:
             result = evaluator(inputs[task])
-        
+
         results[task] = result
-    
+
     return results
 
 # Przeprowadzenie oceny modelu
