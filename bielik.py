@@ -1,3 +1,4 @@
+# Etap 1: Importowanie bibliotek i ustawienia środowiska
 from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, EarlyStoppingCallback, AutoConfig
 import torch
 from datasets import load_dataset, DatasetDict
@@ -6,7 +7,7 @@ import deepspeed
 
 # Ustawienia środowiskowe
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:16'
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32'
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 # Sprawdzenie dostępności GPU
@@ -52,11 +53,11 @@ def menu():
         print("Niepoprawny wybór, spróbuj ponownie.")
 
 # Funkcja generowania tekstu
-def generate_text(prompt, temperature=1.0):
+def generate_text(prompt, temperature=0.7):
     torch.cuda.empty_cache()
     model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16).to(device)
     text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
-    generated_text = text_generator(prompt, max_length=1000, temperature=temperature, num_return_sequences=1)[0]['generated_text']
+    generated_text = text_generator(prompt, max_length=100, temperature=temperature, num_return_sequences=1, do_sample=True)[0]['generated_text']
     del model  # Uwalnianie pamięci
     torch.cuda.empty_cache()
     return generated_text
