@@ -4,12 +4,6 @@ from datasets import load_dataset, Dataset, DatasetDict
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
-from huggingface_hub import HfApi, HfFolder
-
-# Logowanie do Hugging Face za pomocą tokena API
-api_token = "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"
-HfApi().set_access_token(api_token)
-HfFolder.save_token(api_token)
 
 # Nazwa modelu
 model_name = "speakleash/Bielik-7B-v0.1"
@@ -37,13 +31,15 @@ except torch.cuda.OutOfMemoryError:
 # Inicjalizacja pipeline do generowania tekstu
 text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer)
 
-# Funkcja generowania tekstu
-def generate_text(prompt):
+# Funkcja generowania tekstu z dodatkowymi parametrami
+def generate_text(prompt, max_new_tokens=100, temperature=1.0, top_k=50, top_p=0.95):
     sequences = text_generator(
         prompt,
-        max_new_tokens=100,
+        max_new_tokens=max_new_tokens,
         do_sample=True,
-        top_k=50,
+        top_k=top_k,
+        top_p=top_p,
+        temperature=temperature,
         eos_token_id=tokenizer.eos_token_id
     )
     for seq in sequences:
@@ -52,8 +48,8 @@ def generate_text(prompt):
 # Tekst wejściowy
 text = input("Podaj tekst wejściowy: ")
 
-# Generowanie tekstu
-generate_text(text)
+# Generowanie tekstu z podanymi parametrami
+generate_text(text, max_new_tokens=150, temperature=0.7, top_k=50, top_p=0.9)
 
 # Funkcja do tworzenia datasetu z listy par pytań i odpowiedzi
 def create_dataset(pairs):
