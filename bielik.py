@@ -1,9 +1,10 @@
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, HfApi, HfFolder, EarlyStoppingCallback
+from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, EarlyStoppingCallback
 from datasets import load_dataset, Dataset, DatasetDict
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
+from huggingface_hub import HfApi, HfFolder
 
 # Logowanie do Hugging Face za pomocą tokena API
 api_token = "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"
