@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import track
 from rich import box
+import subprocess
 
 console = Console()
 
@@ -50,32 +51,37 @@ deepspeed_config = {
 
 # Funkcja menu
 def menu():
-    table = Table(title="Opcje Menu", box=box.ROUNDED)
-    table.add_column("Numer", justify="right", style="cyan", no_wrap=True)
-    table.add_column("Opis", style="magenta")
-    table.add_row("1", "Generowanie tekstu")
-    table.add_row("2", "Trening modelu")
-    table.add_row("3", "Strojenie hiperparametrów")
-    table.add_row("4", "Ewaluacja modelu")
-    table.add_row("5", "Logowanie danych tekstowych")
-    console.print(table)
-    
-    choice = input("Wybierz opcję: ")
-    if choice == '1':
-        text = input("Podaj tekst wejściowy: ")
-        console.print(generate_text(text, temperature=0.7), style="bold green")
-    elif choice == '2':
-        dataset = load_and_prepare_dataset(tokenizer)
-        train_model(dataset)
-    elif choice == '3':
-        hyperparameter_tuning()
-    elif choice == '4':
-        results = evaluate_model(model_name, tokenizer)
-        console.print(results, style="bold blue")
-    elif choice == '5':
-        log_text_data()
-    else:
-        console.print("Niepoprawny wybór, spróbuj ponownie.", style="bold red")
+    while True:
+        table = Table(title="Opcje Menu", box=box.ROUNDED)
+        table.add_column("Numer", justify="right", style="cyan", no_wrap=True)
+        table.add_column("Opis", style="magenta")
+        table.add_row("1", "Generowanie tekstu")
+        table.add_row("2", "Trening modelu")
+        table.add_row("3", "Strojenie hiperparametrów")
+        table.add_row("4", "Ewaluacja modelu")
+        table.add_row("5", "Logowanie danych tekstowych")
+        console.print(table)
+        
+        choice = input("Wybierz opcję: ")
+        if choice == '1':
+            text = input("Podaj tekst wejściowy: ")
+            console.print(generate_text(text, temperature=0.7), style="bold green")
+        elif choice == '2':
+            dataset = load_and_prepare_dataset(tokenizer)
+            train_model(dataset)
+        elif choice == '3':
+            hyperparameter_tuning()
+        elif choice == '4':
+            results = evaluate_model(model_name, tokenizer)
+            console.print(results, style="bold blue")
+        elif choice == '5':
+            log_text_data()
+        else:
+            console.print("Niepoprawny wybór, spróbuj ponownie.", style="bold red")
+
+        cont = input("\nCzy chcesz kontynuować? (tak/nie): ")
+        if cont.lower() != 'tak':
+            break
 
 # Funkcja generowania tekstu
 def generate_text(prompt, temperature=0.7):
@@ -165,11 +171,11 @@ def train_model(dataset):
     )
     
     try:
-        console.print("Rozpoczynam trening modelu...", style="bold blue")
+        console.print("Rozpoczynam trening modelu...\n", style="bold blue")
         trainer.train()
-        console.print("Trening zakończony sukcesem.", style="bold green")
+        console.print("Trening zakończony sukcesem.\n", style="bold green")
     except Exception as e:
-        console.print(f"Trening nie powiódł się z błędem: {e}", style="bold red")
+        console.print(f"Trening nie powiódł się z błędem: {e}\n", style="bold red")
     del model  # Uwalnianie pamięci
     torch.cuda.empty_cache()
 
@@ -180,7 +186,7 @@ def evaluate_model(model_name, tokenizer):
     tasks = ["sentiment-analysis", "text-classification", "question-answering"]
     results = {}
     for task in tasks:
-        console.print(f"Rozpoczynam ewaluację dla zadania: {task}", style="bold blue")
+        console.print(f"Rozpoczynam ewaluację dla zadania: {task}\n", style="bold blue")
         evaluator = pipeline(task, model=model, tokenizer=tokenizer, device=0)
         inputs = {
             "sentiment-analysis": "To był wspaniały dzień!",
@@ -195,7 +201,7 @@ def evaluate_model(model_name, tokenizer):
         else:
             result = evaluator(inputs[task])
         results[task] = result
-        console.print(f"Wynik dla {task}: {result}", style="bold green")
+        console.print(f"Wynik dla {task}: {result}\n", style="bold green")
     del model  # Uwalnianie pamięci
     torch.cuda.empty_cache()
     return results
@@ -206,8 +212,9 @@ def log_text_data():
     file_writer = tf.summary.create_file_writer(logdir)
     with file_writer.as_default():
         tf.summary.text("Sample text", "This is a sample log of text data", step=0)
-    # Zamiast magicznego polecenia, instrukcja jak uruchomić tensorboard z terminala
-    console.print(f"Aby uruchomić TensorBoard, wykonaj polecenie: tensorboard --logdir {logdir}", style="bold blue")
+    # Uruchomienie TensorBoard jako proces w tle
+    tensorboard_process = subprocess.Popen(['tensorboard', '--logdir', logdir])
+    console.print(f"TensorBoard uruchomiony. Możesz go zobaczyć pod adresem http://localhost:6006\n", style="bold blue")
 
 # Funkcja treningu modelu z hiperparametrami
 def train_test_model(hparams):
@@ -255,7 +262,7 @@ def hyperparameter_tuning():
                     HP_OPTIMIZER: optimizer
                 }
                 run_name = f"run-{session_num}"
-                console.print(f"--- Uruchamianie: {run_name}", style="bold blue")
+                console.print(f"--- Uruchamianie: {run_name}\n", style="bold blue")
                 run('logs/hparam_tuning/' + run_name, hparams)
                 session_num += 1
 
