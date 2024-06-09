@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, DataCollatorForLanguageModeling, pipeline, EarlyStoppingCallback, AutoConfig
 import torch
-from datasets import load_dataset, Dataset, DatasetDict
+from datasets import Dataset, DatasetDict
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -46,12 +46,22 @@ text = input("Podaj tekst wejściowy: ")
 generate_text(text, temperature=0.7)  # Example with temperature set to 0.7
 
 # Funkcja do tworzenia datasetu z listy par pytań i odpowiedzi
-def create_dataset(pairs):
+def create_dataset(pairs, tokenizer):
     df = pd.DataFrame(pairs)
     train_df, eval_df = train_test_split(df, test_size=0.2)
+    
+    def tokenize_function(examples):
+        return tokenizer(examples['text'], padding="max_length", truncation=True)
+    
+    train_dataset = Dataset.from_pandas(train_df).map(tokenize_function, batched=True)
+    eval_dataset = Dataset.from_pandas(eval_df).map(tokenize_function, batched=True)
+    
+    train_dataset = train_dataset.remove_columns(['text'])
+    eval_dataset = eval_dataset.remove_columns(['text'])
+    
     dataset = DatasetDict({
-        "train": Dataset.from_pandas(train_df),
-        "eval": Dataset.from_pandas(eval_df)
+        "train": train_dataset,
+        "eval": eval_dataset
     })
     return dataset
 
@@ -64,7 +74,7 @@ pairs = [
 ]
 
 # Tworzenie datasetu
-dataset = create_dataset(pairs)
+dataset = create_dataset(pairs, tokenizer)
 
 # Przygotowanie danych do trenowania
 data_collator = DataCollatorForLanguageModeling(
