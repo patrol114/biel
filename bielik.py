@@ -8,9 +8,12 @@ import numpy as np
 # Nazwa modelu
 model_name = "speakleash/Bielik-7B-v0.1"
 
-# Załaduj tokenizer i model
+# Załaduj tokenizer i model z mniejszą precyzją
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
+model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, low_cpu_mem_usage=True)
+
+# Użycie gradient checkpointing do oszczędzania pamięci
+model.gradient_checkpointing_enable()
 
 # Inicjalizacja pipeline do generowania tekstu
 text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer)
@@ -65,8 +68,8 @@ training_args = TrainingArguments(
     output_dir="./results",
     overwrite_output_dir=True,
     num_train_epochs=5,  # Zwiększono liczbę epok treningowych
-    per_device_train_batch_size=8,  # Zwiększono rozmiar batcha
-    per_device_eval_batch_size=8,  # Dodano rozmiar batcha dla ewaluacji
+    per_device_train_batch_size=4,  # Zmniejszono rozmiar batcha
+    per_device_eval_batch_size=4,  # Zmniejszono rozmiar batcha dla ewaluacji
     save_steps=2000,
     save_total_limit=3,
     evaluation_strategy="steps",
@@ -78,7 +81,8 @@ training_args = TrainingArguments(
     load_best_model_at_end=True,
     metric_for_best_model="eval_loss",  # Metryka używana do wyboru najlepszego modelu
     greater_is_better=False,  # Wartość mniejsza jest lepsza dla straty
-    report_to="none"  # Wyłączenie raportowania do WANDB
+    report_to="none",  # Wyłączenie raportowania do WANDB
+    dataloader_num_workers=2,  # Zwiększono liczbę wątków do ładowania danych
 )
 
 # Inicjalizacja trenera
