@@ -4,6 +4,9 @@ import torch
 from datasets import load_dataset, DatasetDict
 import os
 import deepspeed
+import tensorflow as tf
+from tensorboard.plugins.hparams import api as hp
+from datetime import datetime
 
 # Ustawienia środowiskowe
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -42,13 +45,15 @@ deepspeed_config = {
 
 # Funkcja menu
 def menu():
-    choice = input("Wybierz opcję: 1. Generowanie tekstu, 2. Trening modelu: ")
+    choice = input("Wybierz opcję: 1. Generowanie tekstu, 2. Trening modelu, 3. Strojenie hiperparametrów: ")
     if choice == '1':
         text = input("Podaj tekst wejściowy: ")
         print(generate_text(text, temperature=0.7))
     elif choice == '2':
         dataset = load_and_prepare_dataset(tokenizer)
         train_model(dataset)
+    elif choice == '3':
+        hyperparameter_tuning()
     else:
         print("Niepoprawny wybór, spróbuj ponownie.")
 
@@ -82,6 +87,9 @@ def train_model(dataset):
     model.tie_weights = False
     
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
+    log_dir = "logs/fit/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=0)
+    
     training_args = TrainingArguments(
         output_dir="./results",
         overwrite_output_dir=True,
@@ -100,10 +108,8 @@ def train_model(dataset):
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
-        report_to="none",
-        dataloader_num_workers=4,
-        run_name="bielik-training",
-        logging_dir="./logs",
+        report_to="tensorboard",
+        logging_dir=log_dir,
         save_strategy="epoch",
         gradient_accumulation_steps=16,
         lr_scheduler_type='cosine',
@@ -116,14 +122,16 @@ def train_model(dataset):
         max_grad_norm=1.0,
         deepspeed=deepspeed_config
     )
+    
     trainer = Trainer(
         model=model,
         args=training_args,
         data_collator=data_collator,
         train_dataset=dataset["train"],
         eval_dataset=dataset["eval"],
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3), tensorboard_callback]
     )
+    
     try:
         print("Rozpoczynam trening modelu...")
         trainer.train()
@@ -132,15 +140,6 @@ def train_model(dataset):
         print(f"Trening nie powiódł się z błędem: {e}")
     del model  # Uwalnianie pamięci
     torch.cuda.empty_cache()
-
-# Główna funkcja sterująca
-if __name__ == "__main__":
-    print("Witaj w aplikacji modelowania językowego!")
-    while True:
-        menu()
-        kontynuacja = input("Czy chcesz kontynuować? (tak/nie): ")
-        if kontynuacja.lower() != "tak":
-            break
 
 # Dodatkowa funkcja ewaluacji modelu, która może być wywołana w ramach treningu lub osobno
 def evaluate_model(model_name, tokenizer):
@@ -166,3 +165,61 @@ def evaluate_model(model_name, tokenizer):
     del model  # Uwalnianie pamięci
     torch.cuda.empty_cache()
     return results
+
+# Logowanie danych tekstowych
+def log_text_data():
+    logdir = "logs/text_data/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    file_writer = tf.summary.create_file_writer(logdir)
+    with file_writer.as_default():
+        tf.summary.text("Sample text", "This is a sample log of text data", step=0)
+    %tensorboard --logdir logs
+
+# Funkcja treningu modelu z hiperparametrami
+def train_test_model(hparams):
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(hparams[HP_NUM_UNITS], activation=tf.nn.relu),
+        tf.keras.layers.Dropout(hparams[HP_DROPOUT]),
+        tf.keras.layers.Dense(10, activation=tf.nn.softmax),
+    ])
+    model.compile(
+        optimizer=hparams[HP_OPTIMIZER],
+        loss='sparse_categorical_crossentropy',
+        metrics=['accuracy'],
+    )
+    model.fit(x_train, y_train, epochs=1)  # Trening z jednym epokiem dla szybszej demonstracji
+    _, accuracy = model.evaluate(x_test, y_test)
+    return accuracy
+
+def run(run_dir, hparams):
+    with tf.summary.create_file_writer(run_dir).as_default():
+        hp.hparams(hparams)  # zapisanie użytych wartości hiperparametrów
+        accuracy = train_test_model(hparams)
+        tf.summary.scalar(METRIC_ACCURACY, accuracy, step=1)
+
+# Funkcja strojenia hiperparametrów
+def hyperparameter_tuning():
+    HP_NUM_UNITS = hp.HParam('num_units', hp.Discrete([16, 32]))
+    HP_DROPOUT = hp.HParam('dropout', hp.RealInterval(0.1, 0.2))
+    HP_OPTIMIZER = hp.HParam('optimizer', hp.Discrete(['adam', 'sgd']))
+    METRIC_ACCURACY = 'accuracy'
+    
+    with tf.summary.create_file_writer('logs/hparam_tuning').as_default():
+        hp.hparams_config(
+            hparams=[HP_NUM_UNITS, HP_DROPOUT, HP_OPTIMIZER],
+            metrics=[hp.Metric(METRIC_ACCURACY, display_name='Accuracy')],
+        )
+    
+    session_num = 0
+    for num_units in HP_NUM_UNITS.domain.values:
+        for dropout_rate in (HP_DROPOUT.domain.min_value, HP_DROPOUT.domain.max_value):
+            for optimizer in HP_OPTIMIZER.domain.values:
+                hparams = {
+                    HP_NUM_UNITS: num_units,
+                    HP_DROPOUT: dropout_rate,
+                    HP_OPTIMIZER: optimizer
+                }
+                run_name = f"run-{session_num}"
+                print(f"--- Uruchamianie: {run_name}")
+                run('logs/hparam_tuning/' + run_name, hparams)
+                session_num += 1
