@@ -12,7 +12,6 @@ from rich.progress import track
 from rich import box
 from rich.panel import Panel
 from rich.text import Text
-from rich.layout import Box
 import subprocess
 
 console = Console()
@@ -91,7 +90,7 @@ def generate_text(prompt, temperature=0.7):
     torch.cuda.empty_cache()
     model = AutoModelForCausalLM.from_pretrained(model_name, config=config, torch_dtype=torch.float16, force_download=True).to(device)
     text_generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0)
-    generated_text = text_generator(prompt, max_length=2096, temperature=temperature, num_return_sequences=1, do_sample=True, pad_token_id=tokenizer.eos_token_id)[0]['generated_text']
+    generated_text = text_generator(prompt, max_length=1024, temperature=temperature, num_return_sequences=1, do_sample=True, pad_token_id=tokenizer.eos_token_id)[0]['generated_text']
 
     # Formatowanie wygenerowanego tekstu
     formatted_text = ""
@@ -105,8 +104,7 @@ def generate_text(prompt, temperature=0.7):
             formatted_text += "\n"  # Dwie nowe linie po każdym akapicie
 
     # Wyświetlanie sformatowanego tekstu w estetycznym formularzu okna/boxu
-    box = Box(Text(formatted_text, style="bold green", justify="left"), box=box.ROUNDED)
-    console.print(Panel(box, title="Wygenerowany tekst", expand=False))
+    console.print(Panel(Text(formatted_text, style="bold green", justify="left"), title="Wygenerowany tekst", expand=False))
 
     del model  # Uwalnianie pamięci
     torch.cuda.empty_cache()
@@ -118,7 +116,7 @@ def load_and_prepare_dataset(tokenizer):
     def tokenize_function(examples):
         # Dodano obsługę wyjątków
         try:
-            return tokenizer(examples['question'], padding="max_length", truncation=True, max_length=1024)  # Dodano truncation=True
+            return tokenizer(examples['question'], padding="max_length", truncation=True, max_length=1024)  # Dodano truncation=True i max_length
         except Exception as e:
             console.print(f"Błąd podczas tokenizacji: {e}", style="bold red")
             return None
@@ -247,7 +245,7 @@ def train_test_model(hparams):
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy'],
     )
-    model.fit(x_train, y_train, epochs=1)  # Trening z jednym epokiem dla szybszej demonstracji
+    model.fit(x_train, y_train, epochs=10)  
     _, accuracy = model.evaluate(x_test, y_test)
     return accuracy
 
